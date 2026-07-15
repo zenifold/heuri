@@ -1,0 +1,13 @@
+{
+  "name": "Heuri – AI Heuristic Review",
+  "id": "0000000000000000000",
+  "api": "1.0.0",
+  "main": "dist/code.js",
+  "ui": "dist/ui.html",
+  "editorType": ["figma"],
+  "documentAccess": "dynamic-page",
+  "networkAccess": {
+    "allowedDomains": ["https://*.onrender.com"],
+    "devAllowedDomains": ["http://localhost:8787"]
+  }
+}
