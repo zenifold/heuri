@@ -11,5 +11,8 @@
     "@figma/plugin-typings": "^1.100.2",
     "esbuild": "^0.24.0",
     "typescript": "^5.7.2"
+  },
+  "dependencies": {
+    "xlsx": "https://cdn.sheetjs.com/xlsx-latest/xlsx-latest.tgz"
   }
 }

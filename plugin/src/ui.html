@@ -122,7 +122,19 @@
       <div id="progress-text"></div>
     </div>
 
-    <h2>6. Add your own comment</h2>
+    <h2>6. Or: designer's own spreadsheet</h2>
+    <div style="font-size: 10px; color: #71717a; margin: 0 0 8px">
+      An alternative to AI review for the pages checked above — export a template, fill in your own
+      findings in Excel, then import it back. Pins land in the center of their tile; drag each into
+      position in Figma afterward.
+    </div>
+    <button class="secondary" id="export-template-btn">Export template</button>
+    <label style="margin-top: 4px">Import filled-in spreadsheet</label>
+    <input type="file" id="import-spreadsheet-input" accept=".xlsx,.csv" />
+    <button class="secondary" id="import-spreadsheet-btn" disabled>Import spreadsheet</button>
+    <div id="import-spreadsheet-result" style="font-size: 11px; margin: 4px 0 8px"></div>
+
+    <h2>7. Add your own comment</h2>
     <div style="font-size: 10px; color: #71717a; margin: 0 0 8px">
       Click directly on a screenshot on the canvas to select it, then fill this in — the pin drops in the
       center of that screenshot; drag it into position afterward.
@@ -142,7 +154,7 @@
     <textarea id="comment-description" rows="2" placeholder="What should the designer know?"></textarea>
     <button class="secondary" id="add-comment-btn">Add to selected screenshot</button>
 
-    <h2>7. After editing in Figma</h2>
+    <h2>8. After editing in Figma</h2>
     <div style="font-size: 10px; color: #71717a; margin: 0 0 8px">
       Select a page frame on the canvas (or anything inside it), then:
     </div>

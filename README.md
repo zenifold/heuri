@@ -34,6 +34,12 @@ npm install
 npm run build                        # outputs plugin/dist/code.js + plugin/dist/ui.html
 ```
 
+Note: `plugin/package.json` points the `xlsx` (spreadsheet import/export) dependency at
+`cdn.sheetjs.com` rather than the npm registry — the npm-published `xlsx` package has known
+high-severity vulnerabilities (prototype pollution, ReDoS) with no fix published there; SheetJS's
+own CDN carries the actual patched builds. `npm install` picks this up automatically from
+`package.json`/`package-lock.json`, nothing extra to do.
+
 Then in the **Figma desktop app**: **Plugins → Development → Import plugin from manifest…** →
 select `plugin/manifest.json`. Launch it from **Plugins → Development → Heuri – AI Heuristic Review**.
 
@@ -66,6 +72,10 @@ putting one person's personal login on a server everyone hits. For team-wide use
 
 ## Using it
 
+The first page of every deck is a **cover page** — evaluation name, generation date, a short
+methodology blurb, and a legend explaining the four pin/card colors — built automatically the first
+time you run Capture screenshots each session, ahead of even the nav/footer captures.
+
 The plugin panel walks through this in order:
 1. **Site** — enter a URL, click **Discover pages** (reads `sitemap.xml` + nav links, suggests up to
    10 candidate pages categorized by type — services, locations, find-a-provider, etc.), or paste
@@ -82,10 +92,19 @@ The plugin panel walks through this in order:
 6. **Run AI review** — analyzes the selected pages and rebuilds those same Figma frames in place
    (same position, no duplicates) now with numbered pins and color-coded comment cards, aligned to
    roughly the same height as their pin on the screenshot.
-7. **Add your own comment** — click a screenshot on the canvas, fill in severity/title/description,
+7. **Or: designer's own spreadsheet** — an alternative to AI review for a designer who'd rather do
+   their own manual analysis. **Export template** generates an .xlsx with one row per (Page,
+   Viewport, Tile) already captured for the checked pages — a "Legend" sheet lists the exact valid
+   Severity values. Fill in Severity / Heuristic Category / Title / Description per row (Page/
+   Viewport/Tile are just for matching — leave them as exported), save, then **Import spreadsheet**
+   to build the same pin + color-coded-card format from those findings instead of the AI's. No
+   position columns — pins land in the center of their tile and get dragged into place in Figma,
+   same as "Add your own comment" below. Bad rows (typo severity, unmatched page name, out-of-range
+   tile) are skipped with a clear reason in the log — one bad row never aborts the whole import.
+8. **Add your own comment** — click a screenshot on the canvas, fill in severity/title/description,
    adds a new pin + card (drag the pin into exact position afterward — Figma has no native
    click-to-place API).
-8. **After editing in Figma** — select a page frame, then **Renumber pins** (cleans up numbering
+9. **After editing in Figma** — select a page frame, then **Renumber pins** (cleans up numbering
    gaps after you delete/add cards) or **Refresh Key Fixes** (recomputes the page's Key Fixes summary
    from whatever comments currently exist, after you've edited/removed the AI's originals).
 

@@ -16,6 +16,7 @@ export const ROLE = {
   keyFixesList: "key-fixes-list",
   tile: "tile",
   viewportSection: "viewport-section",
+  cover: "cover",
 } as const;
 
 function solid(color: RGB): SolidPaint {
@@ -65,6 +66,41 @@ export function createPin(number: number, severity: Severity, centerX: number, c
   badge.x = centerX - PIN_SIZE / 2;
   badge.y = centerY - PIN_SIZE / 2;
   return badge;
+}
+
+// A legend row for the cover page — a plain colored dot (no number, unlike a
+// canvas pin) next to the severity's label and a plain-language explanation
+// of what it means, so anyone opening the deck cold (not just the reviewer
+// who built it) knows how to read the color coding.
+export function createLegendEntry(severity: Severity, description: string): FrameNode {
+  const row = figma.createFrame();
+  row.name = `Legend — ${SEVERITY_LABEL[severity]}`;
+  row.layoutMode = "HORIZONTAL";
+  row.primaryAxisSizingMode = "AUTO";
+  row.counterAxisSizingMode = "AUTO";
+  row.itemSpacing = 14;
+  row.counterAxisAlignItems = "MIN";
+  row.fills = [];
+
+  const dot = figma.createEllipse();
+  dot.name = "Swatch";
+  dot.resize(16, 16);
+  dot.fills = [solid(SEVERITY_COLOR[severity].badge)];
+
+  const textCol = figma.createFrame();
+  textCol.name = "Text";
+  textCol.layoutMode = "VERTICAL";
+  textCol.primaryAxisSizingMode = "AUTO";
+  textCol.counterAxisSizingMode = "FIXED";
+  textCol.resize(600, textCol.height);
+  textCol.itemSpacing = 2;
+  textCol.fills = [];
+  textCol.appendChild(text(SEVERITY_LABEL[severity], { size: 14, color: BODY_TEXT_COLOR, bold: true, name: "Label" }));
+  textCol.appendChild(text(description, { size: 12, color: BODY_TEXT_COLOR, width: 600, name: "Description" }));
+
+  row.appendChild(dot);
+  row.appendChild(textCol);
+  return row;
 }
 
 export function createAnnotationCard(number: number, severity: Severity, annotation: Annotation): FrameNode {

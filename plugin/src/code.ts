@@ -1,7 +1,7 @@
 /// <reference types="@figma/plugin-typings" />
-import type { Annotation, CodeToUiMessage, PageResult, Settings, UiToCodeMessage } from "./types";
+import type { Annotation, CodeToUiMessage, PageResult, Settings, Severity, UiToCodeMessage } from "./types";
 import { loadFonts, HEADER_BAND_COLOR, PAGE_BG_COLOR, BODY_TEXT_COLOR, FONT, FONT_BOLD } from "./theme";
-import { buildViewportSection, createAnnotationCard, createPin, DESKTOP_DISPLAY_SCALE, MOBILE_DISPLAY_SCALE, ROLE } from "./components";
+import { buildViewportSection, createAnnotationCard, createLegendEntry, createPin, DESKTOP_DISPLAY_SCALE, MOBILE_DISPLAY_SCALE, ROLE } from "./components";
 
 figma.showUI(__html__, { width: 440, height: 760 });
 
@@ -58,6 +58,75 @@ function populateKeyFixesList(list: FrameNode, fixes: string[]) {
       list.appendChild(makeText(`•  ${fix}`, 12, BODY_TEXT_COLOR, false, 360));
     }
   }
+}
+
+// Kept in the same order as the "Add your own comment" severity dropdown for
+// consistency across the plugin.
+const SEVERITY_ORDER: Severity[] = ["needs-fix", "improvement", "idea", "good"];
+const SEVERITY_DESCRIPTIONS: Record<Severity, string> = {
+  "needs-fix": "A clear usability problem that should be addressed.",
+  improvement: "Currently works, but there's a concrete, describable way to make it better.",
+  idea: "An optional, forward-looking suggestion — not a problem with what's there now.",
+  good: "A genuine strength worth highlighting and preserving.",
+};
+
+// The deck's cover page — built once per review session (inside
+// startReview, before any content pages), placed first, ahead of even the
+// nav/footer captures. Gives anyone opening the file cold (not just whoever
+// ran the review) the name of the evaluation, when it was generated, and how
+// to read the pin/card color coding without needing it explained separately.
+function buildTitlePage(siteLabel: string, generatedAt: Date): FrameNode {
+  const root = figma.createFrame();
+  root.name = "Cover";
+  root.setPluginData("heuriRole", ROLE.cover);
+  root.layoutMode = "VERTICAL";
+  root.primaryAxisSizingMode = "AUTO";
+  root.counterAxisSizingMode = "FIXED";
+  root.resize(800, root.height);
+  root.itemSpacing = 36;
+  root.paddingTop = 64;
+  root.paddingBottom = 64;
+  root.paddingLeft = 64;
+  root.paddingRight = 64;
+  root.fills = [solid(PAGE_BG_COLOR)];
+
+  const intro = figma.createFrame();
+  intro.name = "Intro";
+  intro.layoutMode = "VERTICAL";
+  intro.primaryAxisSizingMode = "AUTO";
+  intro.counterAxisSizingMode = "FIXED";
+  intro.resize(672, intro.height);
+  intro.itemSpacing = 10;
+  intro.fills = [];
+  intro.appendChild(makeText(`${siteLabel} — Heuristic Evaluation`, 32, BODY_TEXT_COLOR, true, 672, "Title"));
+  intro.appendChild(
+    makeText(
+      `AI-assisted UX heuristic review, evaluated against a 12-category usability framework. ` +
+        `Generated ${generatedAt.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}. ` +
+        `Findings are a first pass — reviewed, edited, and approved by the design team before final delivery.`,
+      14,
+      BODY_TEXT_COLOR,
+      false,
+      672,
+      "Description"
+    )
+  );
+  root.appendChild(intro);
+
+  const legendSection = figma.createFrame();
+  legendSection.name = "Legend Section";
+  legendSection.layoutMode = "VERTICAL";
+  legendSection.primaryAxisSizingMode = "AUTO";
+  legendSection.counterAxisSizingMode = "AUTO";
+  legendSection.itemSpacing = 16;
+  legendSection.fills = [];
+  legendSection.appendChild(makeText("How to read this deck", 18, BODY_TEXT_COLOR, true, undefined, "Legend Heading"));
+  for (const severity of SEVERITY_ORDER) {
+    legendSection.appendChild(createLegendEntry(severity, SEVERITY_DESCRIPTIONS[severity]));
+  }
+  root.appendChild(legendSection);
+
+  return root;
 }
 
 function buildHeaderBand(page: PageResult): FrameNode {
@@ -189,6 +258,13 @@ async function startReview(siteLabel: string) {
   activeSection.name = `${siteLabel} — Heuristic Review`;
   nextX = 0;
   pageFrames.clear();
+
+  const cover = buildTitlePage(siteLabel, new Date());
+  cover.x = nextX;
+  cover.y = 0;
+  figma.currentPage.appendChild(cover);
+  activeSection.appendChild(cover);
+  nextX = cover.width + 120;
 }
 
 async function buildPage(page: PageResult): Promise<string[]> {
