@@ -43,6 +43,19 @@ own CDN carries the actual patched builds. `npm install` picks this up automatic
 Then in the **Figma desktop app**: **Plugins → Development → Import plugin from manifest…** →
 select `plugin/manifest.json`. Launch it from **Plugins → Development → Heuri – AI Heuristic Review**.
 
+## Pulling updates on a machine that already has it set up
+
+`plugin/dist/` (what Figma actually loads — `code.js` + `ui.html`) is gitignored, a build output, not
+source. `git pull` updates `plugin/src/*.ts` but does **not** rebuild `dist/` for you — if you skip
+the rebuild, Figma keeps running whatever old code was already there, and "reload the plugin" won't
+help since there's nothing new to load. After every pull:
+```
+cd plugin
+npm install   # picks up any new/changed dependencies
+npm run build
+```
+Then reload the plugin in Figma (right-click it under Plugins → Development → Heuri, or re-run it).
+
 In the plugin's **Configuration** section (top of the panel): Backend URL defaults to
 `http://localhost:8787`; type in the `HEURI_SHARED_SECRET` value from `backend/.env`, click **Save**,
 then click **Test AI connection** to confirm the AI provider is actually working before running a
