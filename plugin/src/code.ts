@@ -84,7 +84,7 @@ const SEVERITY_DESCRIPTIONS: Record<Severity, string> = {
 // nav/footer captures. Gives anyone opening the file cold (not just whoever
 // ran the review) the name of the evaluation, when it was generated, and how
 // to read the pin/card color coding without needing it explained separately.
-function buildTitlePage(siteLabel: string, generatedAt: Date): FrameNode {
+async function buildTitlePage(siteLabel: string, generatedAt: Date): Promise<FrameNode> {
   const root = figma.createFrame();
   root.name = "Cover";
   root.setPluginData("heuriRole", ROLE.cover);
@@ -131,7 +131,7 @@ function buildTitlePage(siteLabel: string, generatedAt: Date): FrameNode {
   legendSection.fills = [];
   legendSection.appendChild(makeText("How to read this deck", 18, BODY_TEXT_COLOR, true, undefined, "Legend Heading"));
   for (const severity of SEVERITY_ORDER) {
-    legendSection.appendChild(createLegendEntry(severity, SEVERITY_DESCRIPTIONS[severity]));
+    legendSection.appendChild(await createLegendEntry(severity, SEVERITY_DESCRIPTIONS[severity]));
   }
   root.appendChild(legendSection);
 
@@ -263,20 +263,40 @@ let activeSection: SectionNode | null = null;
 let nextX = 0;
 const pageFrames = new Map<string, FrameNode>();
 
+// Every previous evaluation's Section (and anything else already on the
+// page) needs to be cleared *horizontally* before a new one starts — a new
+// review always used to reset to x=0 unconditionally, which put a brand
+// new cover/section directly on top of whatever a prior run (or a
+// different evaluation entirely) had already placed at x=0. Re-running
+// Capture screenshots for the same or a different site, without deleting
+// the old evaluation first, silently produced exactly that: overlapping
+// frames, text peeking out from behind newer content, broken-looking
+// pages — easy to misread as "screenshots not loading."
+function findSafeStartX(): number {
+  let maxRight = 0;
+  for (const child of figma.currentPage.children) {
+    if ("x" in child && "width" in child) {
+      maxRight = Math.max(maxRight, child.x + child.width);
+    }
+  }
+  return maxRight > 0 ? maxRight + 200 : 0;
+}
+
 async function startReview(siteLabel: string) {
   await loadFonts();
+  const startX = findSafeStartX();
   activeSection = figma.createSection();
   activeSection.name = `${siteLabel} — Heuristic Review`;
   activeSection.setPluginData("heuriRole", ROLE.evaluationSection);
-  nextX = 0;
+  nextX = startX;
   pageFrames.clear();
 
-  const cover = buildTitlePage(siteLabel, new Date());
+  const cover = await buildTitlePage(siteLabel, new Date());
   cover.x = nextX;
   cover.y = 0;
   figma.currentPage.appendChild(cover);
   activeSection.appendChild(cover);
-  nextX = cover.width + 120;
+  nextX = cover.x + cover.width + 120;
 }
 
 async function buildPage(page: PageResult): Promise<string[]> {

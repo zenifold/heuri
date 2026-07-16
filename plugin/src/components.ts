@@ -107,9 +107,19 @@ function text(content: string, opts: { size: number; color: RGB; bold?: boolean;
 // system on render; leaving these as ordinary overridable layers sidesteps
 // that entirely and matches how the rest of this codebase already reads
 // content back off nodes (by name, not by component property).
-const LIBRARY_PAGE_NAME = "Heuri Components";
-const BADGE_COMPONENT_SET_NAME = "Badge";
-const CARD_COMPONENT_SET_NAME = "Annotation Card";
+const BADGE_COMPONENT_SET_NAME = "Heuri / Badge";
+const CARD_COMPONENT_SET_NAME = "Heuri / Annotation Card";
+// Placed far below/left of any normal deck content on whatever page a
+// review is built on — out of the way, but deliberately *not* on a
+// separate page. Building on a separate page previously required
+// figma.setCurrentPageAsync() calls in the middle of pin/card creation;
+// if that ever threw or misbehaved, it took the entire in-progress page
+// build down with it (including screenshots that had nothing to do with
+// components). Same-page, no page-switching, is far more robust — the
+// tradeoff is one component library per page instead of one shared across
+// the whole file, which is a fine trade for reliability.
+const LIBRARY_X = -4000;
+const LIBRARY_Y = -4000;
 
 let badgeComponentSet: ComponentSetNode | null = null;
 let cardComponentSet: ComponentSetNode | null = null;
@@ -130,12 +140,14 @@ function layoutVariantsInARow(components: ComponentNode[], y: number, gap: numbe
   }
 }
 
-function buildBadgeMasterVariant(severity: Severity): ComponentNode {
+async function buildBadgeMasterVariant(severity: Severity): Promise<ComponentNode> {
   const comp = figma.createComponent();
   comp.name = `Severity=${SEVERITY_VARIANT_VALUE[severity]}`;
   comp.resize(PIN_SIZE, PIN_SIZE);
   comp.cornerRadius = PIN_SIZE / 2;
-  if (badgeStyleIds) comp.fillStyleId = badgeStyleIds[severity];
+  // documentAccess: "dynamic-page" (manifest) makes the plain .fillStyleId
+  // setter read-only and throw — setFillStyleIdAsync is the required form.
+  if (badgeStyleIds) await comp.setFillStyleIdAsync(badgeStyleIds[severity]);
   else comp.fills = [solid(SEVERITY_COLOR[severity].badge)];
   comp.layoutMode = "HORIZONTAL";
   comp.primaryAxisAlignItems = "CENTER";
@@ -158,7 +170,7 @@ function createBadgeInstance(severity: Severity, size: number): InstanceNode {
   return instance;
 }
 
-function buildCardMasterVariant(severity: Severity): ComponentNode {
+async function buildCardMasterVariant(severity: Severity): Promise<ComponentNode> {
   const card = figma.createComponent();
   card.name = `Severity=${SEVERITY_VARIANT_VALUE[severity]}`;
   card.layoutMode = "VERTICAL";
@@ -171,7 +183,9 @@ function buildCardMasterVariant(severity: Severity): ComponentNode {
   card.paddingLeft = 16;
   card.paddingRight = 16;
   card.cornerRadius = 8;
-  if (cardBgStyleIds) card.fillStyleId = cardBgStyleIds[severity];
+  // documentAccess: "dynamic-page" (manifest) makes the plain .fillStyleId
+  // setter read-only and throw — setFillStyleIdAsync is the required form.
+  if (cardBgStyleIds) await card.setFillStyleIdAsync(cardBgStyleIds[severity]);
   else card.fills = [solid(SEVERITY_COLOR[severity].cardBg)];
 
   const headerRow = figma.createFrame();
@@ -216,37 +230,34 @@ async function ensureComponentLibrary(): Promise<{ badgeSet: ComponentSetNode; c
   await ensureSeverityStyles();
   await loadFonts();
 
-  const originalPage = figma.currentPage;
-  let libraryPage = figma.root.children.find((p) => p.name === LIBRARY_PAGE_NAME) as PageNode | undefined;
-  if (!libraryPage) {
-    libraryPage = figma.createPage();
-    libraryPage.name = LIBRARY_PAGE_NAME;
-  }
-  await figma.setCurrentPageAsync(libraryPage);
-
-  let badgeSet = libraryPage.findOne((n) => n.type === "COMPONENT_SET" && n.name === BADGE_COMPONENT_SET_NAME) as ComponentSetNode | null;
+  let badgeSet = figma.currentPage.findOne((n) => n.type === "COMPONENT_SET" && n.name === BADGE_COMPONENT_SET_NAME) as ComponentSetNode | null;
   if (!badgeSet) {
-    const variants = (Object.keys(SEVERITY_LABEL) as Severity[]).map(buildBadgeMasterVariant);
-    layoutVariantsInARow(variants, 0, 40);
-    badgeSet = figma.combineAsVariants(variants, libraryPage);
+    const variants: ComponentNode[] = [];
+    for (const severity of Object.keys(SEVERITY_LABEL) as Severity[]) {
+      variants.push(await buildBadgeMasterVariant(severity));
+    }
+    layoutVariantsInARow(variants, LIBRARY_Y, 40);
+    badgeSet = figma.combineAsVariants(variants, figma.currentPage);
     badgeSet.name = BADGE_COMPONENT_SET_NAME;
-    badgeSet.x = 0;
-    badgeSet.y = 0;
+    badgeSet.x = LIBRARY_X;
+    badgeSet.y = LIBRARY_Y;
   }
   badgeComponentSet = badgeSet;
 
-  let cardSet = libraryPage.findOne((n) => n.type === "COMPONENT_SET" && n.name === CARD_COMPONENT_SET_NAME) as ComponentSetNode | null;
+  let cardSet = figma.currentPage.findOne((n) => n.type === "COMPONENT_SET" && n.name === CARD_COMPONENT_SET_NAME) as ComponentSetNode | null;
   if (!cardSet) {
-    const variants = (Object.keys(SEVERITY_LABEL) as Severity[]).map(buildCardMasterVariant);
-    layoutVariantsInARow(variants, 0, 40);
-    cardSet = figma.combineAsVariants(variants, libraryPage);
+    const variants: ComponentNode[] = [];
+    for (const severity of Object.keys(SEVERITY_LABEL) as Severity[]) {
+      variants.push(await buildCardMasterVariant(severity));
+    }
+    layoutVariantsInARow(variants, LIBRARY_Y + 300, 40);
+    cardSet = figma.combineAsVariants(variants, figma.currentPage);
     cardSet.name = CARD_COMPONENT_SET_NAME;
-    cardSet.x = 0;
-    cardSet.y = 200;
+    cardSet.x = LIBRARY_X;
+    cardSet.y = LIBRARY_Y + 300;
   }
   cardComponentSet = cardSet;
 
-  await figma.setCurrentPageAsync(originalPage);
   return { badgeSet, cardSet };
 }
 
@@ -267,7 +278,7 @@ export async function createPin(number: number, severity: Severity, centerX: num
 // canvas pin) next to the severity's label and a plain-language explanation
 // of what it means, so anyone opening the deck cold (not just the reviewer
 // who built it) knows how to read the color coding.
-export function createLegendEntry(severity: Severity, description: string): FrameNode {
+export async function createLegendEntry(severity: Severity, description: string): Promise<FrameNode> {
   const row = figma.createFrame();
   row.name = `Legend — ${SEVERITY_LABEL[severity]}`;
   row.layoutMode = "HORIZONTAL";
@@ -280,7 +291,9 @@ export function createLegendEntry(severity: Severity, description: string): Fram
   const dot = figma.createEllipse();
   dot.name = "Swatch";
   dot.resize(16, 16);
-  if (badgeStyleIds) dot.fillStyleId = badgeStyleIds[severity];
+  // documentAccess: "dynamic-page" (manifest) makes the plain .fillStyleId
+  // setter read-only and throw — setFillStyleIdAsync is the required form.
+  if (badgeStyleIds) await dot.setFillStyleIdAsync(badgeStyleIds[severity]);
   else dot.fills = [solid(SEVERITY_COLOR[severity].badge)];
 
   const textCol = figma.createFrame();
@@ -508,7 +521,7 @@ export async function createTileFrame(
   scale: number,
   viewportLabel: string,
   tileIndex: number
-): Promise<{ frame: FrameNode; count: number } | { error: string }> {
+): Promise<{ frame: FrameNode; count: number; warnings: string[] } | { error: string }> {
   let image: Image;
   try {
     image = figma.createImage(tile.imageBytes);
@@ -528,12 +541,20 @@ export async function createTileFrame(
   frame.fills = [{ type: "IMAGE", scaleMode: "FILL", imageHash: image.hash }];
   frame.clipsContent = true;
 
+  // The screenshot itself is already placed above — a pin failing to place
+  // (e.g. a component-library hiccup) shouldn't take the whole screenshot
+  // down with it, so each one is isolated and just skipped with a warning.
+  const warnings: string[] = [];
   for (const [i, annotation] of tile.annotations.entries()) {
-    const pin = await createPin(startNumber + i, annotation.severity, (annotation.x_pct / 100) * displayWidth, (annotation.y_pct / 100) * displayHeight);
-    frame.appendChild(pin);
+    try {
+      const pin = await createPin(startNumber + i, annotation.severity, (annotation.x_pct / 100) * displayWidth, (annotation.y_pct / 100) * displayHeight);
+      frame.appendChild(pin);
+    } catch (err) {
+      warnings.push(`${viewportLabel} screenshot ${tileIndex + 1}: pin ${startNumber + i} failed to place — (${String(err)})`);
+    }
   }
 
-  return { frame, count: tile.annotations.length };
+  return { frame, count: tile.annotations.length, warnings };
 }
 
 const ROW_HEADING_GAP = 16;
@@ -577,6 +598,7 @@ export async function buildViewportSection(
       warnings.push(result.error);
       continue;
     }
+    warnings.push(...result.warnings);
     tileStack.appendChild(result.frame);
     for (const annotation of tile.annotations) {
       pending.push({ number, severity: annotation.severity, annotation, pinY: tileCursorY + (annotation.y_pct / 100) * result.frame.height });
@@ -599,7 +621,16 @@ export async function buildViewportSection(
 
   let cursorY = 0;
   for (const item of pending) {
-    const card = await createAnnotationCard(item.number, item.severity, item.annotation);
+    // Same isolation as pins above: the screenshots are already placed, so a
+    // single card failing to build shouldn't cost the designer the rest of
+    // the page's cards (or worse, the whole page).
+    let card: InstanceNode;
+    try {
+      card = await createAnnotationCard(item.number, item.severity, item.annotation);
+    } catch (err) {
+      warnings.push(`${title}: comment ${item.number} failed to build — (${String(err)})`);
+      continue;
+    }
     const desiredY = headingOffset + item.pinY - CARD_BADGE_CENTER_OFFSET;
     const cardY = Math.max(desiredY, cursorY);
     card.x = 0;
