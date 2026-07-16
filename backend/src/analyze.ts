@@ -177,7 +177,7 @@ async function analyzeTileViaOpenRouterOnce(imageUrl: string, pageLabel: string)
   return AnalyzeResponseSchema.parse(JSON.parse(raw)).annotations;
 }
 
-function stripCodeFence(text: string): string {
+export function stripCodeFence(text: string): string {
   const trimmed = text.trim();
   const fenced = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
   return fenced ? fenced[1] : trimmed;
@@ -186,7 +186,7 @@ function stripCodeFence(text: string): string {
 // Runs the CLI via spawn (not execFile) so we get stdout back on BOTH success and
 // non-zero exit — Claude Code exits 1 on things like "not logged in" or refusals,
 // and the useful message lives in the JSON envelope's `result` field, not stderr.
-function runClaudeCli(args: string[], timeoutMs: number): Promise<{ stdout: string; code: number | null }> {
+export function runClaudeCli(args: string[], timeoutMs: number): Promise<{ stdout: string; code: number | null }> {
   return new Promise((resolve, reject) => {
     const child = spawn(config.claudeCodeBin, args, { windowsHide: true });
     let stdout = "";

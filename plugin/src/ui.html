@@ -3,51 +3,117 @@
   <head>
     <meta charset="utf-8" />
     <style>
-      body { font: 12px/1.4 -apple-system, Inter, sans-serif; margin: 0; padding: 12px; color: #18181b; }
+      /* Defaults to whatever Figma injects for the app's actual theme
+         (figma.showUI's themeColors:true option). The Configuration ->
+         Appearance selector can force a specific look regardless of the
+         app's theme by setting data-theme="light"/"dark" on <html>, which
+         overrides these with a hardcoded fallback palette below. */
+      :root {
+        --heuri-bg: var(--figma-color-bg);
+        --heuri-bg-secondary: var(--figma-color-bg-secondary);
+        --heuri-bg-tertiary: var(--figma-color-bg-tertiary);
+        --heuri-bg-brand: var(--figma-color-bg-brand);
+        --heuri-bg-danger: var(--figma-color-bg-danger);
+        --heuri-text: var(--figma-color-text);
+        --heuri-text-secondary: var(--figma-color-text-secondary);
+        --heuri-text-onbrand: var(--figma-color-text-onbrand);
+        --heuri-text-danger: var(--figma-color-text-danger);
+        --heuri-text-success: var(--figma-color-text-success);
+        --heuri-border: var(--figma-color-border);
+        --heuri-border-danger: var(--figma-color-border-danger);
+      }
+      :root[data-theme="light"] {
+        --heuri-bg: #ffffff;
+        --heuri-bg-secondary: #f4f4f5;
+        --heuri-bg-tertiary: #e4e4e7;
+        --heuri-bg-brand: #0d99ff;
+        --heuri-bg-danger: #f24822;
+        --heuri-text: #1e1e1e;
+        --heuri-text-secondary: #6b7280;
+        --heuri-text-onbrand: #ffffff;
+        --heuri-text-danger: #d0311d;
+        --heuri-text-success: #12805c;
+        --heuri-border: #e4e4e7;
+        --heuri-border-danger: #f24822;
+      }
+      :root[data-theme="dark"] {
+        --heuri-bg: #2c2c2c;
+        --heuri-bg-secondary: #383838;
+        --heuri-bg-tertiary: #454545;
+        --heuri-bg-brand: #0d99ff;
+        --heuri-bg-danger: #f24822;
+        --heuri-text: #ffffff;
+        --heuri-text-secondary: #b3b3b3;
+        --heuri-text-onbrand: #ffffff;
+        --heuri-text-danger: #f26f5c;
+        --heuri-text-success: #4cd47d;
+        --heuri-border: #4d4d4d;
+        --heuri-border-danger: #f26f5c;
+      }
+      body {
+        font: 12px/1.4 -apple-system, Inter, sans-serif; margin: 0; padding: 12px;
+        color: var(--heuri-text); background: var(--heuri-bg);
+      }
       h2 { font-size: 13px; margin: 16px 0 6px; }
       h2:first-child { margin-top: 0; }
-      label { display: block; font-size: 11px; color: #52525b; margin-bottom: 2px; }
+      label { display: block; font-size: 11px; color: var(--heuri-text-secondary); margin-bottom: 2px; }
       input[type="text"], input[type="password"], textarea {
-        width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #d4d4d8;
+        width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--heuri-border);
         border-radius: 4px; font-size: 12px; margin-bottom: 8px; font-family: inherit;
+        background: var(--heuri-bg); color: var(--heuri-text);
       }
       textarea { resize: vertical; }
       button {
-        background: #18181b; color: white; border: none; border-radius: 4px; padding: 7px 12px;
-        font-size: 12px; cursor: pointer; margin-right: 6px; margin-bottom: 8px;
+        background: var(--heuri-bg-brand); color: var(--heuri-text-onbrand); border: none;
+        border-radius: 4px; padding: 7px 12px; font-size: 12px; cursor: pointer; margin-right: 6px; margin-bottom: 8px;
       }
-      button.secondary { background: #f4f4f5; color: #18181b; border: 1px solid #d4d4d8; }
-      button.danger { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+      button.secondary { background: var(--heuri-bg-secondary); color: var(--heuri-text); border: 1px solid var(--heuri-border); }
+      button.danger {
+        background: color-mix(in srgb, var(--heuri-bg-danger) 12%, var(--heuri-bg));
+        color: var(--heuri-text-danger); border: 1px solid var(--heuri-border-danger);
+      }
       button:disabled { opacity: 0.5; cursor: default; }
       select {
-        width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid #d4d4d8;
-        border-radius: 4px; font-size: 12px; margin-bottom: 8px; font-family: inherit; background: white;
+        width: 100%; box-sizing: border-box; padding: 6px 8px; border: 1px solid var(--heuri-border);
+        border-radius: 4px; font-size: 12px; margin-bottom: 8px; font-family: inherit;
+        background: var(--heuri-bg); color: var(--heuri-text);
       }
       .page-row { display: flex; align-items: center; gap: 6px; padding: 4px 0; }
       .page-row input[type="text"] { margin-bottom: 0; }
       .page-row input[type="checkbox"] { flex: none; }
       .checks { display: flex; gap: 12px; margin-bottom: 8px; }
-      .checks label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: #18181b; }
-      #select-all-row { border-bottom: 1px solid #e4e4e7; margin-bottom: 4px; padding-bottom: 6px; }
-      #select-all-row label { font-size: 12px; color: #18181b; margin: 0; }
-      #pages-empty-hint { font-size: 11px; color: #71717a; padding: 4px 0 8px; }
-      #log { background: #fafafa; border: 1px solid #e4e4e7; border-radius: 4px; padding: 8px; height: 120px;
-        overflow-y: auto; font-family: monospace; font-size: 10px; white-space: pre-wrap; }
-      details summary { cursor: pointer; font-size: 11px; color: #52525b; margin-bottom: 8px; }
+      .checks label { display: flex; align-items: center; gap: 4px; font-size: 12px; color: var(--heuri-text); }
+      #select-all-row { border-bottom: 1px solid var(--heuri-border); margin-bottom: 4px; padding-bottom: 6px; }
+      #select-all-row label { font-size: 12px; color: var(--heuri-text); margin: 0; }
+      #pages-empty-hint { font-size: 11px; color: var(--heuri-text-secondary); padding: 4px 0 8px; }
+      #log {
+        background: var(--heuri-bg-secondary); border: 1px solid var(--heuri-border);
+        border-radius: 4px; padding: 8px; height: 120px; overflow-y: auto; font-family: monospace;
+        font-size: 10px; white-space: pre-wrap;
+      }
+      details summary { cursor: pointer; font-size: 11px; color: var(--heuri-text-secondary); margin-bottom: 8px; }
       .status { font-size: 11px; margin-top: 6px; }
-      .status.error { color: #b91c1c; }
-      .status.ok { color: #15803d; }
+      .status.error { color: var(--heuri-text-danger); }
+      .status.ok { color: var(--heuri-text-success); }
       #progress-wrap { margin: 4px 0 10px; }
-      #progress-track { background: #e4e4e7; border-radius: 4px; height: 6px; overflow: hidden; }
-      #progress-fill { background: #18181b; height: 100%; width: 0%; transition: width 0.2s; }
-      #progress-text { font-size: 11px; color: #52525b; margin-top: 4px; }
-      .field-error { border-color: #b91c1c !important; }
+      #progress-track { background: var(--heuri-bg-tertiary); border-radius: 4px; height: 6px; overflow: hidden; }
+      #progress-fill { background: var(--heuri-bg-brand); height: 100%; width: 0%; transition: width 0.2s; }
+      #progress-text { font-size: 11px; color: var(--heuri-text-secondary); margin-top: 4px; }
+      .field-error { border-color: var(--heuri-border-danger) !important; }
       .spinner {
-        display: none; width: 12px; height: 12px; border: 2px solid #d4d4d8;
-        border-top-color: #18181b; border-radius: 50%; animation: spin 0.7s linear infinite;
+        display: none; width: 12px; height: 12px; border: 2px solid var(--heuri-border);
+        border-top-color: var(--heuri-bg-brand); border-radius: 50%; animation: spin 0.7s linear infinite;
         vertical-align: middle; margin-left: 2px;
       }
       @keyframes spin { to { transform: rotate(360deg); } }
+      #comment-drag-handle {
+        width: 22px; height: 22px; border-radius: 50%; flex: none; cursor: grab;
+        border: 2px solid rgba(0, 0, 0, 0.15);
+      }
+      #comment-drag-handle:active { cursor: grabbing; }
+      .subhead { font-size: 12px; font-weight: 600; color: var(--heuri-text); margin: 12px 0 6px; }
+      .hint { font-size: 10px; color: var(--heuri-text-secondary); margin: 0 0 8px; }
+      details.tools summary { font-size: 13px; color: var(--heuri-text); font-weight: 600; }
     </style>
   </head>
   <body>
@@ -60,12 +126,16 @@
       <button class="secondary" id="save-settings">Save</button>
       <button class="secondary" id="test-ai-btn">Test AI connection</button><span class="spinner" id="test-ai-spinner"></span>
       <div id="test-ai-result" style="font-size: 11px; margin: 4px 0 8px"></div>
-      <hr style="border: none; border-top: 1px solid #e4e4e7; margin: 10px 0" />
+      <hr style="border: none; border-top: 1px solid var(--heuri-border); margin: 10px 0" />
+      <label>Appearance</label>
+      <select id="theme-select">
+        <option value="auto">Match Figma</option>
+        <option value="light">Light</option>
+        <option value="dark">Dark</option>
+      </select>
+      <hr style="border: none; border-top: 1px solid var(--heuri-border); margin: 10px 0" />
       <button class="danger" id="reset-plugin-btn">Reset plugin</button>
-      <div style="font-size: 10px; color: #71717a; margin: -4px 0 8px">
-        Clears the page list, captured screenshots, and saved session — does not touch the settings above.
-        Use this if the panel gets stuck, or to start over on a new site.
-      </div>
+      <div class="hint" style="margin-top: -4px">Clears the page list and captures. Settings above are kept.</div>
     </details>
 
     <h2>1. Site</h2>
@@ -74,20 +144,18 @@
     <button id="discover-btn">Discover pages</button>
     <button class="secondary" id="clear-site-btn">Clear</button>
 
-    <h2>2. Pages to review</h2>
+    <h2>2. Pages</h2>
     <div class="page-row" id="select-all-row" style="display: none">
       <input type="checkbox" id="select-all" />
       <label for="select-all" style="flex: 1">Select all</label>
-      <span id="selected-count" style="font-size: 11px; color: #71717a"></span>
+      <span id="selected-count" style="font-size: 11px; color: var(--heuri-text-secondary)"></span>
     </div>
     <div id="pages-list"></div>
-    <div id="pages-empty-hint" style="display: none">
-      No pages yet — click "Discover pages" above, or add URLs manually below.
-    </div>
+    <div id="pages-empty-hint" style="display: none">No pages yet — discover, or add URLs below.</div>
     <textarea id="manual-url" placeholder="Add page URL(s) — one per line, or paste a list" rows="2"></textarea>
     <button class="secondary" id="add-page-btn">Add</button>
 
-    <h2>3. Viewports</h2>
+    <div class="subhead">Viewports</div>
     <div class="checks">
       <label><input type="checkbox" id="vp-desktop" checked /> Desktop</label>
       <label><input type="checkbox" id="vp-mobile" checked /> Mobile</label>
@@ -96,23 +164,19 @@
       <label><input type="checkbox" id="capture-header" checked /> Global Nav (header)</label>
       <label><input type="checkbox" id="capture-footer" checked /> Footer</label>
     </div>
-    <div style="font-size: 10px; color: #71717a; margin: -6px 0 8px">
-      Captured once from the first selected page — nav/footer are treated as their own dedicated pages, same as the reference deck.
-    </div>
+    <div class="hint" style="margin-top: -4px">Nav/footer are captured once, placed as their own pages.</div>
 
-    <h2>4. Capture screenshots</h2>
+    <h2>3. Capture screenshots</h2>
     <button id="capture-btn">Capture screenshots</button><span class="spinner" id="capture-spinner"></span>
 
-    <h2>5. Pages to analyze</h2>
+    <h2>4. AI review</h2>
     <div class="page-row" id="analyze-select-all-row" style="display: none">
       <input type="checkbox" id="analyze-select-all" />
       <label for="analyze-select-all" style="flex: 1">Select all</label>
-      <span id="analyze-selected-count" style="font-size: 11px; color: #71717a"></span>
+      <span id="analyze-selected-count" style="font-size: 11px; color: var(--heuri-text-secondary)"></span>
     </div>
     <div id="analyze-list"></div>
-    <div id="analyze-empty-hint" style="font-size: 11px; color: #71717a; padding: 4px 0 8px">
-      Capture screenshots above first — then pick which of them get AI analysis.
-    </div>
+    <div id="analyze-empty-hint" class="hint">Capture screenshots first.</div>
 
     <button id="analyze-btn" disabled>Run AI review</button><span class="spinner" id="analyze-spinner"></span>
     <button class="danger" id="cancel-btn" disabled>Cancel</button>
@@ -122,23 +186,18 @@
       <div id="progress-text"></div>
     </div>
 
-    <h2>6. Or: designer's own spreadsheet</h2>
-    <div style="font-size: 10px; color: #71717a; margin: 0 0 8px">
-      An alternative to AI review for the pages checked above — export a template, fill in your own
-      findings in Excel, then import it back. Pins land in the center of their tile; drag each into
-      position in Figma afterward.
-    </div>
-    <button class="secondary" id="export-template-btn">Export template</button>
-    <label style="margin-top: 4px">Import filled-in spreadsheet</label>
-    <input type="file" id="import-spreadsheet-input" accept=".xlsx,.csv" />
-    <button class="secondary" id="import-spreadsheet-btn" disabled>Import spreadsheet</button>
-    <div id="import-spreadsheet-result" style="font-size: 11px; margin: 4px 0 8px"></div>
+    <details id="spreadsheet-details">
+      <summary>Or: import findings from a spreadsheet</summary>
+      <div class="hint">Export a template, fill in findings in Excel, then import it back. Pins land centered — drag into place.</div>
+      <button class="secondary" id="export-template-btn">Export template</button>
+      <label style="margin-top: 4px">Import filled-in spreadsheet</label>
+      <input type="file" id="import-spreadsheet-input" accept=".xlsx,.csv" />
+      <button class="secondary" id="import-spreadsheet-btn" disabled>Import spreadsheet</button>
+      <div id="import-spreadsheet-result" style="font-size: 11px; margin: 4px 0 8px"></div>
+    </details>
 
-    <h2>7. Add your own comment</h2>
-    <div style="font-size: 10px; color: #71717a; margin: 0 0 8px">
-      Click directly on a screenshot on the canvas to select it, then fill this in — the pin drops in the
-      center of that screenshot; drag it into position afterward.
-    </div>
+    <h2>5. Add your own comments</h2>
+    <div class="hint">Fill in the details, then drag the dot onto a screenshot to place it.</div>
     <label>Severity</label>
     <select id="comment-severity">
       <option value="needs-fix">Needs to be fixed</option>
@@ -152,17 +211,69 @@
     <input type="text" id="comment-title" placeholder="Short label" />
     <label>Description</label>
     <textarea id="comment-description" rows="2" placeholder="What should the designer know?"></textarea>
-    <button class="secondary" id="add-comment-btn">Add to selected screenshot</button>
-
-    <h2>8. After editing in Figma</h2>
-    <div style="font-size: 10px; color: #71717a; margin: 0 0 8px">
-      Select a page frame on the canvas (or anything inside it), then:
+    <label>Assigned to (optional)</label>
+    <input type="text" id="comment-assignee" placeholder="Who should follow up?" />
+    <div style="display: flex; align-items: center; gap: 8px; margin: 4px 0 6px">
+      <div id="comment-drag-handle" draggable="true" title="Drag onto a screenshot to place it"></div>
+      <span style="font-size: 11px; color: var(--heuri-text-secondary)">Drag onto a screenshot to place it</span>
     </div>
-    <button class="secondary" id="renumber-btn">Renumber pins</button>
-    <button class="secondary" id="refresh-key-fixes-btn">Refresh Key Fixes</button>
+    <button class="secondary" id="undo-comment-btn" style="margin: 0" disabled>Undo last comment</button>
 
-    <h2>Log</h2>
-    <div id="log"></div>
+    <details class="tools" id="page-tools-details" style="margin-top: 16px">
+      <summary>Page tools</summary>
+      <div class="hint">Select a page on the canvas, then:</div>
+      <button class="secondary" id="renumber-btn">Renumber pins</button>
+      <button class="secondary" id="refresh-key-fixes-btn">Refresh Key Fixes</button>
+
+      <label style="margin-top: 8px">Jump to page</label>
+      <div style="display: flex; align-items: center; gap: 6px; margin: 0 0 4px">
+        <select id="jump-to-page-select" style="margin-bottom: 0; flex: 1"></select>
+        <button class="secondary" id="refresh-pages-btn" style="margin: 0; flex: none">Refresh</button>
+        <button class="secondary" id="jump-to-page-btn" style="margin: 0; flex: none" disabled>Jump</button>
+      </div>
+    </details>
+
+    <details class="tools" id="bulk-edit-details">
+      <summary>Review status &amp; bulk edit</summary>
+      <label>Evaluation</label>
+      <div class="hint">Which review to read from — works even for an older one.</div>
+      <div style="display: flex; align-items: center; gap: 6px; margin: 0 0 8px">
+        <select id="evaluation-select" style="margin-bottom: 0; flex: 1"></select>
+        <button class="secondary" id="refresh-evaluations-btn" style="margin: 0; flex: none">Refresh</button>
+      </div>
+      <button class="secondary" id="refresh-review-status-btn">Refresh review status</button>
+      <div id="review-status-table" style="font-size: 11px; margin: 4px 0 8px"></div>
+
+      <div class="hint" style="margin-top: 4px">Select pins/cards on the canvas, then:</div>
+      <button class="secondary" id="toggle-resolved-btn">Toggle resolved</button>
+
+      <div style="display: flex; align-items: center; gap: 6px; margin: 8px 0 8px">
+        <input type="text" id="bulk-assignee-input" placeholder="Assignee name" style="margin-bottom: 0; flex: 1" />
+        <button class="secondary" id="set-assignee-btn" style="margin: 0; flex: none">Set assignee</button>
+      </div>
+      <div style="display: flex; align-items: center; gap: 6px; margin: 0 0 8px">
+        <select id="bulk-severity-select" style="margin-bottom: 0; flex: 1">
+          <option value="needs-fix">Needs to be fixed</option>
+          <option value="improvement">Areas of improvement</option>
+          <option value="idea">Idea / Recommendation</option>
+          <option value="good">This is good</option>
+        </select>
+        <button class="secondary" id="bulk-set-severity-btn" style="margin: 0; flex: none">Set severity</button>
+      </div>
+      <button class="danger" id="bulk-delete-btn">Delete selected comment(s)</button>
+    </details>
+
+    <details class="tools" id="recommendations-details">
+      <summary>Final recommendations</summary>
+      <div class="hint">Synthesizes every comment into overarching themes and recommendations. Re-running replaces the previous version.</div>
+      <button id="generate-recommendations-btn">Generate final recommendations</button><span class="spinner" id="recommendations-spinner"></span>
+      <div id="recommendations-result" style="font-size: 11px; margin: 4px 0 8px"></div>
+    </details>
+
+    <details id="log-details">
+      <summary>Log</summary>
+      <div id="log"></div>
+    </details>
     <div id="status" class="status"></div>
 
     <script>__UI_SCRIPT__</script>

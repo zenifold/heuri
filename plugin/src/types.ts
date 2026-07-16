@@ -7,6 +7,7 @@ export interface Annotation {
   heuristic: string;
   title: string;
   description: string;
+  assignee?: string;
 }
 
 export interface TileWithAnnotations {
@@ -30,6 +31,31 @@ export interface PageResult {
 export interface Settings {
   backendUrl: string;
   sharedSecret: string;
+  theme?: "auto" | "light" | "dark";
+}
+
+export interface CollectedFinding {
+  page: string;
+  viewport: "desktop" | "mobile";
+  severity: Severity;
+  heuristic: string;
+  title: string;
+  description: string;
+  resolved: boolean;
+  assignee: string;
+}
+
+export interface Recommendation {
+  title: string;
+  description: string;
+  priority: "high" | "medium" | "low";
+}
+
+export interface RecommendationsContent {
+  summary: string;
+  themes: string[];
+  recommendations: Recommendation[];
+  counts: Record<Severity, number>;
 }
 
 export type UiToCodeMessage =
@@ -42,8 +68,27 @@ export type UiToCodeMessage =
   | { type: "finish-review" }
   | { type: "renumber" }
   | { type: "refresh-key-fixes" }
-  | { type: "add-comment"; severity: Severity; heuristic: string; title: string; description: string }
+  | { type: "collect-findings"; sectionId?: string }
+  | { type: "build-recommendations"; siteLabel: string; content: RecommendationsContent; sectionId?: string }
+  | { type: "list-sections" }
+  | { type: "list-pages" }
+  | { type: "jump-to-page"; id: string }
+  | { type: "undo-last-comment" }
+  | { type: "bulk-delete-comments" }
+  | { type: "bulk-set-severity"; severity: Severity }
+  | { type: "toggle-resolved" }
+  | { type: "set-assignee"; assignee: string }
   | { type: "log"; message: string };
+
+export type CommandName =
+  | "renumber"
+  | "refresh-key-fixes"
+  | "add-comment"
+  | "undo-last-comment"
+  | "bulk-delete-comments"
+  | "bulk-set-severity"
+  | "toggle-resolved"
+  | "set-assignee";
 
 export type CodeToUiMessage =
   | { type: "settings"; settings: Settings | null }
@@ -53,4 +98,9 @@ export type CodeToUiMessage =
   | { type: "page-build-error"; label: string; message: string }
   | { type: "build-complete" }
   | { type: "build-error"; message: string }
-  | { type: "command-result"; command: "renumber" | "refresh-key-fixes" | "add-comment"; ok: boolean; message: string };
+  | { type: "command-result"; command: CommandName; ok: boolean; message: string }
+  | { type: "findings-collected"; findings: CollectedFinding[] }
+  | { type: "recommendations-built" }
+  | { type: "recommendations-build-error"; message: string }
+  | { type: "pages-listed"; pages: { id: string; name: string }[] }
+  | { type: "sections-listed"; sections: { id: string; name: string }[] };

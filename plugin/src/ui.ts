@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import type { Annotation, CodeToUiMessage, PageResult, Settings, Severity, TileWithAnnotations, UiToCodeMessage } from "./types";
+import type { Annotation, CodeToUiMessage, CollectedFinding, PageResult, RecommendationsContent, Settings, Severity, TileWithAnnotations, UiToCodeMessage } from "./types";
 
 interface DiscoveredPage {
   url: string;
@@ -37,6 +37,7 @@ const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as 
 
 const backendUrlInput = $<HTMLInputElement>("backend-url");
 const sharedSecretInput = $<HTMLInputElement>("shared-secret");
+const themeSelect = $<HTMLSelectElement>("theme-select");
 const siteUrlInput = $<HTMLInputElement>("site-url");
 const pagesList = $<HTMLDivElement>("pages-list");
 const pagesEmptyHint = $<HTMLDivElement>("pages-empty-hint");
@@ -62,11 +63,26 @@ const analyzeSelectAllCheckbox = $<HTMLInputElement>("analyze-select-all");
 const analyzeSelectedCountEl = $<HTMLSpanElement>("analyze-selected-count");
 const renumberBtn = $<HTMLButtonElement>("renumber-btn");
 const refreshKeyFixesBtn = $<HTMLButtonElement>("refresh-key-fixes-btn");
+const jumpToPageSelect = $<HTMLSelectElement>("jump-to-page-select");
+const refreshPagesBtn = $<HTMLButtonElement>("refresh-pages-btn");
+const jumpToPageBtn = $<HTMLButtonElement>("jump-to-page-btn");
+const toggleResolvedBtn = $<HTMLButtonElement>("toggle-resolved-btn");
+const evaluationSelect = $<HTMLSelectElement>("evaluation-select");
+const refreshEvaluationsBtn = $<HTMLButtonElement>("refresh-evaluations-btn");
+const refreshReviewStatusBtn = $<HTMLButtonElement>("refresh-review-status-btn");
+const reviewStatusTable = $<HTMLDivElement>("review-status-table");
+const bulkAssigneeInput = $<HTMLInputElement>("bulk-assignee-input");
+const setAssigneeBtn = $<HTMLButtonElement>("set-assignee-btn");
+const bulkSeveritySelect = $<HTMLSelectElement>("bulk-severity-select");
+const bulkSetSeverityBtn = $<HTMLButtonElement>("bulk-set-severity-btn");
+const bulkDeleteBtn = $<HTMLButtonElement>("bulk-delete-btn");
 const commentSeverity = $<HTMLSelectElement>("comment-severity");
 const commentHeuristic = $<HTMLInputElement>("comment-heuristic");
 const commentTitle = $<HTMLInputElement>("comment-title");
 const commentDescription = $<HTMLTextAreaElement>("comment-description");
-const addCommentBtn = $<HTMLButtonElement>("add-comment-btn");
+const commentAssignee = $<HTMLInputElement>("comment-assignee");
+const commentDragHandle = $<HTMLDivElement>("comment-drag-handle");
+const undoCommentBtn = $<HTMLButtonElement>("undo-comment-btn");
 const testAiBtn = $<HTMLButtonElement>("test-ai-btn");
 const testAiSpinner = $<HTMLSpanElement>("test-ai-spinner");
 const testAiResult = $<HTMLDivElement>("test-ai-result");
@@ -75,6 +91,9 @@ const exportTemplateBtn = $<HTMLButtonElement>("export-template-btn");
 const importSpreadsheetInput = $<HTMLInputElement>("import-spreadsheet-input");
 const importSpreadsheetBtn = $<HTMLButtonElement>("import-spreadsheet-btn");
 const importSpreadsheetResult = $<HTMLDivElement>("import-spreadsheet-result");
+const generateRecommendationsBtn = $<HTMLButtonElement>("generate-recommendations-btn");
+const recommendationsSpinner = $<HTMLSpanElement>("recommendations-spinner");
+const recommendationsResult = $<HTMLDivElement>("recommendations-result");
 
 interface SessionState {
   siteUrl: string;
@@ -118,6 +137,8 @@ function log(message: string) {
 // page-build-error response before sending the next closes that race.
 let pendingPageBuildResolve: ((result: { ok: boolean; message?: string }) => void) | null = null;
 let pendingReviewStartedResolve: (() => void) | null = null;
+let pendingFindingsResolve: ((findings: CollectedFinding[]) => void) | null = null;
+let pendingRecommendationsBuildResolve: ((result: { ok: boolean; message?: string }) => void) | null = null;
 
 function sendBuildPageAndWait(page: PageResult): Promise<{ ok: boolean; message?: string }> {
   return new Promise((resolve) => {
@@ -130,6 +151,24 @@ function sendStartReviewAndWait(siteLabel: string): Promise<void> {
   return new Promise((resolve) => {
     pendingReviewStartedResolve = resolve;
     send({ type: "start-review", siteLabel });
+  });
+}
+
+function sendCollectFindingsAndWait(sectionId?: string): Promise<CollectedFinding[]> {
+  return new Promise((resolve) => {
+    pendingFindingsResolve = resolve;
+    send({ type: "collect-findings", sectionId });
+  });
+}
+
+function sendBuildRecommendationsAndWait(
+  siteLabel: string,
+  content: RecommendationsContent,
+  sectionId?: string
+): Promise<{ ok: boolean; message?: string }> {
+  return new Promise((resolve) => {
+    pendingRecommendationsBuildResolve = resolve;
+    send({ type: "build-recommendations", siteLabel, content, sectionId });
   });
 }
 
@@ -171,7 +210,7 @@ function isAbort(err: unknown): boolean {
 function updateSelectedCount() {
   const count = pages.filter((p) => p.checked).length;
   selectedCountEl.textContent = `${count} selected (max ${MAX_PAGES_PER_RUN})`;
-  selectedCountEl.style.color = count > MAX_PAGES_PER_RUN ? "#b91c1c" : "#71717a";
+  selectedCountEl.style.color = count > MAX_PAGES_PER_RUN ? "var(--heuri-text-danger)" : "var(--heuri-text-secondary)";
 }
 
 function renderPages() {
@@ -269,7 +308,7 @@ function renderAnalyzeList() {
 
     const meta = document.createElement("span");
     meta.style.fontSize = "10px";
-    meta.style.color = "#71717a";
+    meta.style.color = "var(--heuri-text-secondary)";
     const parts: string[] = [];
     if (page.desktop) parts.push(`desktop: ${page.desktop.tiles.length} tile(s)`);
     if (page.mobile) parts.push(`mobile: ${page.mobile.tiles.length} tile(s)`);
@@ -316,11 +355,28 @@ function validateBackendSettings(): boolean {
 }
 
 $<HTMLButtonElement>("save-settings").onclick = () => {
-  const settings: Settings = { backendUrl: backendUrlInput.value, sharedSecret: sharedSecretInput.value };
+  const settings: Settings = { backendUrl: backendUrlInput.value, sharedSecret: sharedSecretInput.value, theme: themeSelect.value as Settings["theme"] };
   send({ type: "save-settings", settings });
   markFieldValidity(backendUrlInput, true);
   markFieldValidity(sharedSecretInput, true);
   setStatus("Settings saved.", "ok");
+};
+
+// "Auto" defers to Figma's own live-updating theme (figma.showUI's
+// themeColors:true, injected as --figma-color-* vars); Light/Dark force a
+// hardcoded fallback palette via CSS (see :root[data-theme] in ui.html)
+// regardless of the app's actual theme.
+function applyTheme(theme: Settings["theme"]) {
+  if (theme && theme !== "auto") document.documentElement.setAttribute("data-theme", theme);
+  else document.documentElement.removeAttribute("data-theme");
+}
+
+themeSelect.onchange = () => {
+  applyTheme(themeSelect.value as Settings["theme"]);
+  send({
+    type: "save-settings",
+    settings: { backendUrl: backendUrlInput.value, sharedSecret: sharedSecretInput.value, theme: themeSelect.value as Settings["theme"] },
+  });
 };
 
 interface TestAiResponse {
@@ -341,7 +397,7 @@ testAiBtn.onclick = async () => {
   testAiBtn.disabled = true;
   testAiSpinner.style.display = "inline-block";
   testAiResult.textContent = "Testing… (captures a page and runs one AI analysis, ~5-10s)";
-  testAiResult.style.color = "#71717a";
+  testAiResult.style.color = "var(--heuri-text-secondary)";
   try {
     const res = await fetch(backendUrl("/test-ai"), { method: "POST", headers: backendHeaders() });
     const data = (await res.json()) as TestAiResponse;
@@ -349,14 +405,14 @@ testAiBtn.onclick = async () => {
     if (data.ok) {
       const samplePart = data.sample ? ` Sample: "${data.sample.title}" [${data.sample.severity}].` : "";
       testAiResult.textContent = `✓ Connected via ${data.provider}${modelPart} — ${data.findingCount} finding(s) in ${(data.elapsedMs / 1000).toFixed(1)}s.${samplePart}`;
-      testAiResult.style.color = "#15803d";
+      testAiResult.style.color = "var(--heuri-text-success)";
     } else {
       testAiResult.textContent = `⚠ ${data.provider}${modelPart}: ${friendlyError(data.error)}`;
-      testAiResult.style.color = "#b91c1c";
+      testAiResult.style.color = "var(--heuri-text-danger)";
     }
   } catch (err) {
     testAiResult.textContent = `⚠ ${friendlyError(err)}`;
-    testAiResult.style.color = "#b91c1c";
+    testAiResult.style.color = "var(--heuri-text-danger)";
   } finally {
     testAiBtn.disabled = false;
     testAiSpinner.style.display = "none";
@@ -500,9 +556,11 @@ function setRunningState(running: boolean) {
   discoverBtn.disabled = running;
   exportTemplateBtn.disabled = running;
   importSpreadsheetBtn.disabled = running || !importSpreadsheetInput.files || importSpreadsheetInput.files.length === 0;
+  generateRecommendationsBtn.disabled = running;
   if (!running) {
     captureSpinner.style.display = "none";
     analyzeSpinner.style.display = "none";
+    recommendationsSpinner.style.display = "none";
   }
 }
 
@@ -939,7 +997,7 @@ importSpreadsheetBtn.onclick = async () => {
   setRunningState(true);
   importSpreadsheetBtn.disabled = true;
   importSpreadsheetResult.textContent = "Reading file…";
-  importSpreadsheetResult.style.color = "#71717a";
+  importSpreadsheetResult.style.color = "var(--heuri-text-secondary)";
 
   try {
     const buf = await file.arrayBuffer();
@@ -1012,7 +1070,7 @@ importSpreadsheetBtn.onclick = async () => {
 
     if (valid.length === 0) {
       importSpreadsheetResult.textContent = `No valid rows found (${errors.length} error(s) — see log).`;
-      importSpreadsheetResult.style.color = "#b91c1c";
+      importSpreadsheetResult.style.color = "var(--heuri-text-danger)";
       return;
     }
 
@@ -1045,10 +1103,10 @@ importSpreadsheetBtn.onclick = async () => {
     importSpreadsheetResult.textContent = `Imported ${valid.length} finding(s) across ${builtCount} page(s)${
       errors.length ? ` — ${errors.length} row(s) skipped, see log` : ""
     }.`;
-    importSpreadsheetResult.style.color = errors.length ? "#b91c1c" : "#15803d";
+    importSpreadsheetResult.style.color = errors.length ? "var(--heuri-text-danger)" : "var(--heuri-text-success)";
   } catch (err) {
     importSpreadsheetResult.textContent = `⚠ ${friendlyError(err)}`;
-    importSpreadsheetResult.style.color = "#b91c1c";
+    importSpreadsheetResult.style.color = "var(--heuri-text-danger)";
   } finally {
     setRunningState(false);
     hideProgress();
@@ -1063,19 +1121,181 @@ importSpreadsheetBtn.onclick = async () => {
 renumberBtn.onclick = () => send({ type: "renumber" });
 refreshKeyFixesBtn.onclick = () => send({ type: "refresh-key-fixes" });
 
-addCommentBtn.onclick = () => {
+// Reads the canvas fresh each time (not in-memory session state), so this
+// still works after reopening the panel without re-running a review.
+refreshPagesBtn.onclick = () => send({ type: "list-pages" });
+jumpToPageSelect.onchange = () => {
+  jumpToPageBtn.disabled = !jumpToPageSelect.value;
+};
+jumpToPageBtn.onclick = () => {
+  if (jumpToPageSelect.value) send({ type: "jump-to-page", id: jumpToPageSelect.value });
+};
+
+// "Evaluation" picker: which review's data Refresh Review Status / Generate
+// Final Recommendations read from. Reads the canvas fresh each time (not
+// in-memory session state), so it reaches a previous evaluation's Section
+// even after a plugin reopen or a reset — the whole point of this control.
+refreshEvaluationsBtn.onclick = () => send({ type: "list-sections" });
+send({ type: "list-sections" });
+
+// All of these operate on whatever's currently multi-selected on the canvas
+// (native Figma multi-select) — there's no way for a plugin to react to a
+// click on a canvas node beyond selection change, so "select on canvas,
+// click a button" is the pattern here, same as Renumber/Refresh Key Fixes.
+toggleResolvedBtn.onclick = () => send({ type: "toggle-resolved" });
+bulkDeleteBtn.onclick = () => send({ type: "bulk-delete-comments" });
+bulkSetSeverityBtn.onclick = () => send({ type: "bulk-set-severity", severity: bulkSeveritySelect.value as Severity });
+setAssigneeBtn.onclick = () => send({ type: "set-assignee", assignee: bulkAssigneeInput.value.trim() });
+
+// Reuses collectFindings() (already grouped by page) purely as a new
+// consumer — no new canvas-walking logic needed.
+refreshReviewStatusBtn.onclick = async () => {
+  const findings = await sendCollectFindingsAndWait(evaluationSelect.value || undefined);
+  if (findings.length === 0) {
+    reviewStatusTable.innerHTML = "";
+    setStatus(
+      evaluationSelect.value ? "No findings found in that evaluation." : "No findings on the canvas yet — pick an evaluation above, or run a review first.",
+      ""
+    );
+    return;
+  }
+  const byPage = new Map<string, CollectedFinding[]>();
+  for (const f of findings) {
+    if (!byPage.has(f.page)) byPage.set(f.page, []);
+    byPage.get(f.page)!.push(f);
+  }
+  const rows: string[] = [];
+  for (const [page, items] of byPage) {
+    const counts: Record<Severity, number> = { "needs-fix": 0, improvement: 0, idea: 0, good: 0 };
+    let resolved = 0;
+    for (const item of items) {
+      counts[item.severity] += 1;
+      if (item.resolved) resolved += 1;
+    }
+    rows.push(
+      `<div style="margin-bottom: 6px"><strong>${page}</strong> — ` +
+        `${counts["needs-fix"]} needs-fix, ${counts.improvement} improvement, ${counts.idea} idea, ${counts.good} good ` +
+        `(${resolved}/${items.length} resolved)</div>`
+    );
+  }
+  reviewStatusTable.innerHTML = rows.join("");
+};
+
+// Figma plugins have no "click anywhere on the canvas" event — but dragging an
+// element from the plugin UI and dropping it on the canvas fires figma.on('drop')
+// in the main thread with real absoluteX/absoluteY canvas coordinates. That's the
+// mechanic used here: fill in the fields, then drag this dot onto the exact spot
+// on a screenshot to place it there (see figma.on('drop') in code.ts).
+const COMMENT_DOT_COLOR: Record<Severity, string> = {
+  "needs-fix": "#e0442b",
+  improvement: "#f0b429",
+  idea: "#8e44ad",
+  good: "#27ae60",
+};
+
+function syncCommentDotColor() {
+  commentDragHandle.style.background = COMMENT_DOT_COLOR[commentSeverity.value as Severity];
+}
+syncCommentDotColor();
+commentSeverity.onchange = syncCommentDotColor;
+
+undoCommentBtn.onclick = () => send({ type: "undo-last-comment" });
+
+commentDragHandle.addEventListener("dragend", (e: DragEvent) => {
+  if (e.view && e.view.length === 0) return;
   const title = commentTitle.value.trim();
   if (!title) {
     setStatus("Add a title for the comment first.", "error");
     return;
   }
-  send({
-    type: "add-comment",
-    severity: commentSeverity.value as Annotation["severity"],
-    heuristic: commentHeuristic.value.trim(),
-    title,
-    description: commentDescription.value.trim(),
-  });
+  window.parent.postMessage(
+    {
+      pluginDrop: {
+        clientX: e.clientX,
+        clientY: e.clientY,
+        items: [
+          {
+            type: "application/x-heuri-comment",
+            data: JSON.stringify({
+              severity: commentSeverity.value as Annotation["severity"],
+              heuristic: commentHeuristic.value.trim(),
+              title,
+              description: commentDescription.value.trim(),
+              assignee: commentAssignee.value.trim(),
+            }),
+          },
+        ],
+      },
+    },
+    "*"
+  );
+});
+
+// Reads every comment card currently on the canvas (not the original AI/
+// import data — a designer may have edited things since), sends it to the
+// backend for a cross-page synthesis, and builds the result as one more
+// frame at the end of the deck. Re-running replaces the previous version.
+generateRecommendationsBtn.onclick = async () => {
+  if (!validateBackendSettings()) return;
+
+  cancelled = false;
+  controller = new AbortController();
+  setRunningState(true);
+  recommendationsSpinner.style.display = "inline-block";
+  recommendationsResult.textContent = "Collecting findings from the canvas…";
+  recommendationsResult.style.color = "var(--heuri-text-secondary)";
+
+  try {
+    const sectionId = evaluationSelect.value || undefined;
+    const findings = await sendCollectFindingsAndWait(sectionId);
+    if (findings.length === 0) {
+      recommendationsResult.textContent = sectionId
+        ? "No findings found in that evaluation."
+        : "No findings on the canvas yet — pick an evaluation above, or run AI review / import a spreadsheet / add your own comments first.";
+      recommendationsResult.style.color = "var(--heuri-text-danger)";
+      return;
+    }
+
+    const counts: Record<Severity, number> = { "needs-fix": 0, improvement: 0, idea: 0, good: 0 };
+    for (const f of findings) counts[f.severity] += 1;
+
+    const siteLabel = captured[0] ? new URL(captured[0].url).hostname : "Site";
+    recommendationsResult.textContent = `Synthesizing ${findings.length} finding(s)…`;
+
+    const res = await fetch(backendUrl("/synthesize"), {
+      method: "POST",
+      headers: backendHeaders(),
+      body: JSON.stringify({
+        siteLabel,
+        findings: findings.map(({ page, viewport, severity, heuristic, title, description }) => ({
+          page,
+          viewport,
+          severity,
+          heuristic,
+          title,
+          description,
+        })),
+      }),
+      signal: controller.signal,
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const synthesis = (await res.json()) as { summary: string; themes: string[]; recommendations: RecommendationsContent["recommendations"] };
+
+    recommendationsResult.textContent = "Building Final Recommendations page…";
+    const buildResult = await sendBuildRecommendationsAndWait(siteLabel, { ...synthesis, counts }, sectionId);
+    if (!buildResult.ok) throw new Error(buildResult.message || "Failed to build the Final Recommendations page.");
+
+    const pageCount = new Set(findings.map((f) => f.page)).size;
+    recommendationsResult.textContent = `✓ Final Recommendations built from ${findings.length} finding(s) across ${pageCount} page(s).`;
+    recommendationsResult.style.color = "var(--heuri-text-success)";
+  } catch (err) {
+    recommendationsResult.textContent = `⚠ ${friendlyError(err)}`;
+    recommendationsResult.style.color = "var(--heuri-text-danger)";
+  } finally {
+    setRunningState(false);
+    hideProgress();
+    recommendationsSpinner.style.display = "none";
+  }
 };
 
 window.onmessage = (event: MessageEvent) => {
@@ -1085,11 +1305,20 @@ window.onmessage = (event: MessageEvent) => {
     if (msg.settings) {
       backendUrlInput.value = msg.settings.backendUrl;
       sharedSecretInput.value = msg.settings.sharedSecret;
+      themeSelect.value = msg.settings.theme ?? "auto";
+      applyTheme(msg.settings.theme ?? "auto");
     } else {
       backendUrlInput.value = "http://localhost:8787";
       $<HTMLDetailsElement>("settings-details").open = true;
     }
   } else if (msg.type === "review-started") {
+    // A brand-new evaluation just got its own Section on the canvas — make
+    // sure the Evaluation picker points at it (not whatever was selected
+    // before, which might be a now-stale earlier evaluation) so "Generate
+    // final recommendations" targets the review that was just finished, not
+    // an old one, without requiring a manual "Refresh" click first.
+    evaluationSelect.value = "";
+    send({ type: "list-sections" });
     pendingReviewStartedResolve?.();
     pendingReviewStartedResolve = null;
   } else if (msg.type === "page-built") {
@@ -1123,6 +1352,11 @@ window.onmessage = (event: MessageEvent) => {
     if (msg.ok && msg.command === "add-comment") {
       commentTitle.value = "";
       commentDescription.value = "";
+      commentAssignee.value = "";
+      undoCommentBtn.disabled = false;
+    }
+    if (msg.command === "undo-last-comment") {
+      undoCommentBtn.disabled = true;
     }
   } else if (msg.type === "session") {
     const session = msg.session as SessionState | null;
@@ -1137,6 +1371,37 @@ window.onmessage = (event: MessageEvent) => {
       const ageMin = Math.round((Date.now() - (session.savedAt ?? 0)) / 60000);
       const staleNote = ageMin > 30 ? ` (from ${ageMin} min ago — screenshots may have expired, re-capture if AI review fails)` : "";
       setStatus(`Restored previous session${staleNote}.`, "");
+    }
+  } else if (msg.type === "findings-collected") {
+    pendingFindingsResolve?.(msg.findings);
+    pendingFindingsResolve = null;
+  } else if (msg.type === "recommendations-built") {
+    pendingRecommendationsBuildResolve?.({ ok: true });
+    pendingRecommendationsBuildResolve = null;
+  } else if (msg.type === "recommendations-build-error") {
+    pendingRecommendationsBuildResolve?.({ ok: false, message: msg.message });
+    pendingRecommendationsBuildResolve = null;
+  } else if (msg.type === "pages-listed") {
+    jumpToPageSelect.innerHTML = "";
+    if (msg.pages.length === 0) {
+      jumpToPageSelect.appendChild(new Option("No pages on canvas yet", ""));
+    } else {
+      jumpToPageSelect.appendChild(new Option("Choose a page…", ""));
+      for (const p of msg.pages) jumpToPageSelect.appendChild(new Option(p.name, p.id));
+    }
+    jumpToPageBtn.disabled = true;
+  } else if (msg.type === "sections-listed") {
+    const previousValue = evaluationSelect.value;
+    evaluationSelect.innerHTML = "";
+    if (msg.sections.length === 0) {
+      evaluationSelect.appendChild(new Option("No evaluations found on this page", ""));
+    } else {
+      for (const s of msg.sections) evaluationSelect.appendChild(new Option(s.name, s.id));
+      // Keep the previous selection if it still exists; otherwise default to
+      // the most recent evaluation (sections are listed in canvas order,
+      // left to right, and new ones are always appended to the right).
+      const stillExists = msg.sections.some((s) => s.id === previousValue);
+      evaluationSelect.value = stillExists ? previousValue : msg.sections[msg.sections.length - 1].id;
     }
   }
 };

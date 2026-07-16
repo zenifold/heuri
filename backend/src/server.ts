@@ -6,6 +6,7 @@ import { requireSharedSecret } from "./auth.js";
 import { discoverPages } from "./discover.js";
 import { captureFullPage, captureComponent, type Viewport } from "./scan.js";
 import { analyzeTile } from "./analyze.js";
+import { synthesizeFindings, FindingInputSchema } from "./synthesize.js";
 import { getTile } from "./store.js";
 
 const app = express();
@@ -149,6 +150,25 @@ app.post("/test-ai", async (_req, res) => {
       elapsedMs: Date.now() - start,
       error: String(err),
     });
+  }
+});
+
+const SynthesizeBodySchema = z.object({
+  siteLabel: z.string(),
+  // Findings come from the plugin reading back the *current* state of every
+  // comment card across the deck, not the original AI/import data — a
+  // designer may have edited, deleted, or added findings by the time this
+  // runs. Capped well above what a real review would produce as a safety
+  // bound on prompt size.
+  findings: z.array(FindingInputSchema).min(1).max(300),
+});
+app.post("/synthesize", async (req, res) => {
+  try {
+    const { siteLabel, findings } = SynthesizeBodySchema.parse(req.body);
+    const result = await synthesizeFindings(siteLabel, findings);
+    res.json(result);
+  } catch (err) {
+    res.status(500).json({ error: String(err) });
   }
 });
 

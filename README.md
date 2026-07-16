@@ -76,41 +76,60 @@ The first page of every deck is a **cover page** — evaluation name, generation
 methodology blurb, and a legend explaining the four pin/card colors — built automatically the first
 time you run Capture screenshots each session, ahead of even the nav/footer captures.
 
-The plugin panel walks through this in order:
+The panel's main flow is five steps — **capture, AI-review, then add your own comments** — with
+everything else (page tools, bulk edit, recommendations, logs) tucked into collapsed sections below
+so the panel stays focused on that path:
+
 1. **Site** — enter a URL, click **Discover pages** (reads `sitemap.xml` + nav links, suggests up to
-   10 candidate pages categorized by type — services, locations, find-a-provider, etc.), or paste
-   URLs manually.
-2. **Pages to review** — check/uncheck, edit labels, add more.
-3. **Viewports** — Desktop / Mobile, plus optional **Global Nav (header)** / **Footer** captures
-   (captured once from the first selected page, placed as their own dedicated pages — first in the
-   deck, ahead of content pages).
-4. **Capture screenshots** — the slow, Playwright-heavy step. Screenshots get placed on the Figma
-   canvas immediately (with page title/URL/Key Fixes header) as soon as they're captured, before any
-   AI analysis — so you can see real progress and don't lose anything if a later step fails.
-5. **Pages to analyze** — pick which of the captured pages actually get AI analysis (doesn't have to
-   be all of them — this step can be re-run on a different subset without re-capturing).
-6. **Run AI review** — analyzes the selected pages and rebuilds those same Figma frames in place
-   (same position, no duplicates) now with numbered pins and color-coded comment cards, aligned to
-   roughly the same height as their pin on the screenshot.
-7. **Or: designer's own spreadsheet** — an alternative to AI review for a designer who'd rather do
-   their own manual analysis. **Export template** generates an .xlsx with one row per (Page,
-   Viewport, Tile) already captured for the checked pages — a "Legend" sheet lists the exact valid
-   Severity values. Fill in Severity / Heuristic Category / Title / Description per row (Page/
-   Viewport/Tile are just for matching — leave them as exported), save, then **Import spreadsheet**
-   to build the same pin + color-coded-card format from those findings instead of the AI's. No
-   position columns — pins land in the center of their tile and get dragged into place in Figma,
-   same as "Add your own comment" below. Bad rows (typo severity, unmatched page name, out-of-range
-   tile) are skipped with a clear reason in the log — one bad row never aborts the whole import.
-8. **Add your own comment** — click a screenshot on the canvas, fill in severity/title/description,
-   adds a new pin + card (drag the pin into exact position afterward — Figma has no native
-   click-to-place API).
-9. **After editing in Figma** — select a page frame, then **Renumber pins** (cleans up numbering
-   gaps after you delete/add cards) or **Refresh Key Fixes** (recomputes the page's Key Fixes summary
-   from whatever comments currently exist, after you've edited/removed the AI's originals).
+   10 candidate pages categorized by type), or paste URLs manually.
+2. **Pages** — check/uncheck, edit labels, add more. **Viewports** underneath: Desktop / Mobile,
+   plus optional **Global Nav (header)** / **Footer** (captured once, placed as their own pages
+   first in the deck).
+3. **Capture screenshots** — the slow, Playwright-heavy step. Screenshots land on the canvas as soon
+   as each is captured, before any AI analysis, so you see real progress and keep what's done if a
+   later step fails.
+4. **AI review** — pick which captured pages get analyzed, click **Run AI review**. Rebuilds those
+   same Figma frames in place (no duplicates) with numbered pins and color-coded comment cards.
+   *Or: import findings from a spreadsheet* (collapsed dropdown) is the manual alternative — export
+   a template, fill in Severity / Heuristic / Title / Description in Excel, import it back to get
+   the same pin/card format from your own findings instead of the AI's.
+5. **Add your own comments** — fill in severity/heuristic/title/description, then drag the colored
+   dot onto the exact spot on any screenshot to drop a pin there. Figma plugins have no "click
+   anywhere on the canvas" event, but dragging an element from the panel onto the canvas does report
+   real drop coordinates — the closest real equivalent, and more precise than a click since you see
+   exactly where it'll land before releasing. Renumbers into correct reading order automatically and
+   connects to its card with a dashed line. **Undo last comment** if you misplace one.
+
+Below that, collapsed by default:
+- **Page tools** — **Renumber pins** / **Refresh Key Fixes** (select a page on canvas first), and
+  **Jump to page** (reads the canvas fresh each time, works even after reopening the plugin).
+- **Review status & bulk edit** — an **Evaluation** picker (which review to read from — works for
+  an older one too, not just the one you just ran), **Refresh review status** for a per-page
+  severity breakdown, and canvas-multi-select-driven **Toggle resolved** / **Set assignee** /
+  **Set severity** / **Delete selected comment(s)**.
+- **Final recommendations** — reads every comment card in the selected evaluation (across AI review,
+  spreadsheet import, and manual additions) and asks the AI to synthesize overarching themes and
+  prioritized recommendations across the *whole* site. Built as one more page; re-running replaces
+  the previous version instead of duplicating.
+
+The panel follows Figma's own light/dark theme automatically — override this in Configuration ->
+**Appearance** (Match Figma / Light / Dark) if you want a specific look regardless of the app's
+theme. The four severity colors are registered as shared Color Styles (visible in Figma's own
+Styles panel) rather than one-off fills — restyle them once, everywhere.
+
+Every pin and comment card is an **instance of a shared Figma component** (one "Severity" variant
+each, in a `Heuri Components` page created the first time you run a review — safe to leave alone,
+it's the master library everything else is instanced from). Editing a master updates every pin/card
+across every page at once; changing a comment's severity (manually via the Figma properties panel,
+or through **Set severity for selected**) is a native variant swap rather than a recolored fill.
 
 **Reset plugin** (in Configuration) clears the page list, captured screenshots, and saved session —
 keeps your Backend URL/secret. Session state (page list + captures) also persists automatically
 across closing/reopening the panel.
+
+The **Log** panel at the bottom (raw technical output, mainly useful for troubleshooting) is
+collapsed by default, same as Configuration and the spreadsheet import section above — status
+messages after each action still show above it either way.
 
 ## Deploying the backend for team-wide use (optional)
 
